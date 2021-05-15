@@ -1,0 +1,878 @@
+%%-*- mode: erlang -*-
+%% EMQ X R4.0 config mapping
+
+%%--------------------------------------------------------------------
+%% Cluster
+%%--------------------------------------------------------------------
+
+%% @doc Cluster name
+{mapping, "cluster.name", "ekka.cluster_name", [
+  {default, emqxcl},
+  {datatype, atom}
+]}.
+
+%% @doc Cluster discovery
+{mapping, "cluster.discovery", "ekka.cluster_discovery", [
+  {default, manual},
+  {datatype, atom}
+]}.
+
+%% @doc Clean down node from the cluster
+{mapping, "cluster.autoclean", "ekka.cluster_autoclean", [
+  {datatype, {duration, ms}}
+]}.
+
+%% @doc Cluster autoheal
+{mapping, "cluster.autoheal", "ekka.cluster_autoheal", [
+  {datatype, flag},
+  {default, off}
+]}.
+
+%%--------------------------------------------------------------------
+%% Cluster by static node list
+
+{mapping, "cluster.static.seeds", "ekka.cluster_discovery", [
+  {datatype, string}
+]}.
+
+%%--------------------------------------------------------------------
+%% Cluster by UDP Multicast
+
+{mapping, "cluster.mcast.addr", "ekka.cluster_discovery", [
+  {default, "239.192.0.1"},
+  {datatype, string}
+]}.
+
+{mapping, "cluster.mcast.ports", "ekka.cluster_discovery", [
+  {default, "4369"},
+  {datatype, string}
+]}.
+
+{mapping, "cluster.mcast.iface", "ekka.cluster_discovery", [
+  {datatype, string},
+  {default, "0.0.0.0"}
+]}.
+
+{mapping, "cluster.mcast.ttl", "ekka.cluster_discovery", [
+  {datatype, integer},
+  {default, 255}
+]}.
+
+{mapping, "cluster.mcast.loop", "ekka.cluster_discovery", [
+  {datatype, flag},
+  {default, on}
+]}.
+
+{mapping, "cluster.mcast.sndbuf", "ekka.cluster_discovery", [
+  {datatype, bytesize},
+  {default, "16KB"}
+]}.
+
+{mapping, "cluster.mcast.recbuf", "ekka.cluster_discovery", [
+  {datatype, bytesize},
+  {default, "16KB"}
+]}.
+
+{mapping, "cluster.mcast.buffer", "ekka.cluster_discovery", [
+  {datatype, bytesize},
+  {default, "32KB"}
+]}.
+
+%%--------------------------------------------------------------------
+%% Cluster by DNS A Record
+
+{mapping, "cluster.dns.name", "ekka.cluster_discovery", [
+  {datatype, string}
+]}.
+
+%% @doc The erlang distributed protocol
+{mapping, "cluster.proto_dist", "ekka.proto_dist", [
+  {default, "inet_tcp"},
+  {datatype, {enum, [inet_tcp, inet6_tcp, inet_tls]}},
+  hidden
+]}.
+
+{mapping, "cluster.dns.app", "ekka.cluster_discovery", [
+  {datatype, string}
+]}.
+
+%%--------------------------------------------------------------------
+%% Cluster using etcd
+
+{mapping, "cluster.etcd.server", "ekka.cluster_discovery", [
+  {datatype, string}
+]}.
+
+{mapping, "cluster.etcd.prefix", "ekka.cluster_discovery", [
+  {datatype, string}
+]}.
+
+{mapping, "cluster.etcd.node_ttl", "ekka.cluster_discovery", [
+  {datatype, {duration, ms}},
+  {default, "1m"}
+]}.
+
+{mapping, "cluster.etcd.ssl.keyfile", "ekka.cluster_discovery", [
+  {datatype, string}
+]}.
+
+{mapping, "cluster.etcd.ssl.certfile", "ekka.cluster_discovery", [
+  {datatype, string}
+]}.
+
+{mapping, "cluster.etcd.ssl.cacertfile", "ekka.cluster_discovery", [
+  {datatype, string}
+]}.
+
+%%--------------------------------------------------------------------
+%% Cluster on K8s
+
+{mapping, "cluster.k8s.apiserver", "ekka.cluster_discovery", [
+  {datatype, string}
+]}.
+
+{mapping, "cluster.k8s.service_name", "ekka.cluster_discovery", [
+  {datatype, string}
+]}.
+
+{mapping, "cluster.k8s.address_type", "ekka.cluster_discovery", [
+  {datatype, {enum, [ip, dns, hostname]}}
+]}.
+
+{mapping, "cluster.k8s.app_name", "ekka.cluster_discovery", [
+  {datatype, string}
+]}.
+
+{mapping, "cluster.k8s.namespace", "ekka.cluster_discovery", [
+  {datatype, string}
+]}.
+
+{mapping, "cluster.k8s.suffix", "ekka.cluster_discovery", [
+    {datatype, string},
+    {default, ""}
+  ]}.
+
+{translation, "ekka.cluster_discovery", fun(Conf) ->
+  Strategy = cuttlefish:conf_get("cluster.discovery", Conf),
+  Filter  = fun(Opts) -> [{K, V} || {K, V} <- Opts, V =/= undefined] end,
+  IpPort = fun(S) ->
+             [Addr, Port] = string:tokens(S, ":"),
+             {ok, Ip} = inet:parse_address(Addr),
+             {Ip, Port}
+           end,
+  Options = fun(static) ->
+                 [{seeds, [list_to_atom(S) || S <- string:tokens(cuttlefish:conf_get("cluster.static.seeds", Conf, ""), ",")]}];
+               (mcast) ->
+                 {ok, Addr} = inet:parse_address(cuttlefish:conf_get("cluster.mcast.addr", Conf)),
+                 {ok, Iface} = inet:parse_address(cuttlefish:conf_get("cluster.mcast.iface", Conf)),
+                 Ports = [list_to_integer(S) || S <- string:tokens(cuttlefish:conf_get("cluster.mcast.ports", Conf), ",")],
+                 [{addr, Addr}, {ports, Ports}, {iface, Iface},
+                  {ttl, cuttlefish:conf_get("cluster.mcast.ttl", Conf, 1)},
+                  {loop, cuttlefish:conf_get("cluster.mcast.loop", Conf, true)}];
+               (dns) ->
+                 [{name, cuttlefish:conf_get("cluster.dns.name", Conf)},
+                  {app, cuttlefish:conf_get("cluster.dns.app", Conf)}];
+               (etcd) ->
+                 SslOpts = fun(Conf) ->
+                              Options = cuttlefish_variable:filter_by_prefix("cluster.etcd.ssl", Conf),
+                              lists:map(fun({["cluster", "etcd", "ssl", Name], Value}) ->
+                                            {list_to_atom(Name), Value}
+                                        end, Options)
+                            end,
+                 [{server, string:tokens(cuttlefish:conf_get("cluster.etcd.server", Conf), ",")},
+                  {prefix, cuttlefish:conf_get("cluster.etcd.prefix", Conf, "emqcl")},
+                  {node_ttl, cuttlefish:conf_get("cluster.etcd.node_ttl", Conf, 60)},
+                  {ssl_options, SslOpts(Conf)}];
+               (k8s) ->
+                 [{apiserver, cuttlefish:conf_get("cluster.k8s.apiserver", Conf)},
+                  {service_name, cuttlefish:conf_get("cluster.k8s.service_name", Conf)},
+                  {address_type, cuttlefish:conf_get("cluster.k8s.address_type", Conf, ip)},
+                  {app_name, cuttlefish:conf_get("cluster.k8s.app_name", Conf)},
+                  {namespace, cuttlefish:conf_get("cluster.k8s.namespace", Conf)},
+                  {suffix, cuttlefish:conf_get("cluster.k8s.suffix", Conf, "")}];
+               (manual) ->
+                 [ ]
+            end,
+  {Strategy, Filter(Options(Strategy))}
+end}.
+
+%%--------------------------------------------------------------------
+%% Node
+%%--------------------------------------------------------------------
+
+%% @doc Node name
+{mapping, "node.name", "vm_args.-name", [
+  {default, "emqx@127.0.0.1"}
+]}.
+
+%% @doc Specify SSL Options in the file if using SSL for erlang distribution
+{mapping, "node.ssl_dist_optfile", "vm_args.-ssl_dist_optfile", [
+  {datatype, string},
+  hidden
+]}.
+
+%% @doc Secret cookie for distributed erlang node
+{mapping, "node.cookie", "vm_args.-setcookie", [
+  {default, "emqxsecretcookie"}
+]}.
+
+{mapping, "node.data_dir", "emqx.data_dir", [
+  {datatype, string}
+]}.
+
+%% @doc http://erlang.org/doc/man/heart.html
+{mapping, "node.heartbeat", "vm_args.-heart", [
+  {datatype, flag},
+  hidden
+]}.
+
+{translation, "vm_args.-heart", fun(Conf) ->
+    case cuttlefish:conf_get("node.heartbeat", Conf) of
+        true  -> "";
+        false -> cuttlefish:invalid("should be 'on' or comment the line!")
+    end
+end}.
+
+%% @doc More information at: http://erlang.org/doc/man/erl.html
+{mapping, "node.async_threads", "vm_args.+A", [
+  {datatype, integer},
+  {validators, ["range:0-1024"]}
+]}.
+
+%% @doc Erlang Process Limit
+{mapping, "node.process_limit", "vm_args.+P", [
+  {datatype, integer},
+  hidden
+]}.
+
+%% @doc The maximum number of concurrent ports/sockets.
+%% Valid range is 1024-134217727
+{mapping, "node.max_ports", "vm_args.+Q", [
+  {datatype, integer},
+  {validators, ["range4ports"]}
+]}.
+
+{validator, "range4ports", "must be 1024 to 134217727",
+ fun(X) -> X >= 1024 andalso X =< 134217727 end}.
+
+%% @doc http://www.erlang.org/doc/man/erl.html#%2bzdbbl
+{mapping, "node.dist_buffer_size", "vm_args.+zdbbl", [
+  {datatype, bytesize},
+  {commented, "32MB"},
+  hidden,
+  {validators, ["zdbbl_range"]}
+]}.
+
+{translation, "vm_args.+zdbbl",
+ fun(Conf) ->
+  ZDBBL = cuttlefish:conf_get("node.dist_buffer_size", Conf, undefined),
+  case ZDBBL of
+    undefined -> undefined;
+    X when is_integer(X) -> cuttlefish_util:ceiling(X / 1024); %% Bytes to Kilobytes;
+    _ -> undefined
+  end
+ end}.
+
+{validator, "zdbbl_range", "must be between 1KB and 2097151KB",
+ fun(ZDBBL) ->
+  %% 2097151KB = 2147482624
+  ZDBBL >= 1024 andalso ZDBBL =< 2147482624
+ end
+}.
+
+%% @doc Global GC Interval
+{mapping, "node.global_gc_interval", "emqx.global_gc_interval", [
+  {datatype, {duration, s}}
+]}.
+
+%% @doc http://www.erlang.org/doc/man/erlang.html#system_flag-2
+{mapping, "node.fullsweep_after", "vm_args.-env ERL_FULLSWEEP_AFTER", [
+  {default, 1000},
+  {datatype, integer},
+  hidden,
+  {validators, ["positive_integer"]}
+]}.
+
+{validator, "positive_integer", "must be a positive integer",
+  fun(X) -> X >= 0 end}.
+
+%% Note: OTP R15 and earlier uses -env ERL_MAX_ETS_TABLES,
+%% R16+ uses +e
+%% @doc The ETS table limit
+{mapping, "node.max_ets_tables",
+  cuttlefish:otp("R16", "vm_args.+e", "vm_args.-env ERL_MAX_ETS_TABLES"), [
+  {default, 256000},
+  {datatype, integer},
+  hidden
+]}.
+
+%% @doc Set the location of crash dumps
+{mapping, "node.crash_dump", "vm_args.-env ERL_CRASH_DUMP", [
+  {default, "{{crash_dump}}"},
+  {datatype, file},
+  hidden
+]}.
+
+%% @doc http://www.erlang.org/doc/man/kernel_app.html#net_ticktime
+{mapping, "node.dist_net_ticktime", "vm_args.-kernel net_ticktime", [
+  {datatype, integer},
+  hidden
+]}.
+
+%% @doc http://www.erlang.org/doc/man/kernel_app.html
+{mapping, "node.dist_listen_min", "kernel.inet_dist_listen_min", [
+  {commented, 6369},
+  {datatype, integer},
+  hidden
+]}.
+
+%% @see node.dist_listen_min
+{mapping, "node.dist_listen_max", "kernel.inet_dist_listen_max", [
+  {commented, 6369},
+  {datatype, integer},
+  hidden
+]}.
+
+%%--------------------------------------------------------------------
+%% RPC
+%%--------------------------------------------------------------------
+
+%% RPC Mode.
+{mapping, "rpc.mode", "emqx.rpc_mode", [
+  {default, async},
+  {datatype, {enum, [sync, async]}}
+]}.
+
+{mapping, "rpc.async_batch_size", "gen_rpc.max_batch_size", [
+  {default, 256},
+  {datatype, integer}
+]}.
+
+%% RPC server port.
+{mapping, "rpc.tcp_server_port", "gen_rpc.tcp_server_port", [
+  {default, 5369},
+  {datatype, integer}
+]}.
+
+%% Default TCP port for outgoing connections
+{mapping, "rpc.tcp_client_port", "gen_rpc.tcp_client_port", [
+  {default, 5369},
+  {datatype, integer}
+]}.
+
+%% Default TCP port for outgoing connections
+{mapping, "rpc.tcp_client_num", "gen_rpc.tcp_client_num", [
+  {default, 0},
+  {datatype, integer},
+  {validators, ["range:gt_0_lt_256"]}
+]}.
+
+{translation, "gen_rpc.tcp_client_num", fun(Conf) ->
+  case cuttlefish:conf_get("rpc.tcp_client_num", Conf) of
+    0 -> max(1, erlang:system_info(schedulers) div 2);
+    V -> V
+  end
+end}.
+
+%% Client connect timeout
+{mapping, "rpc.connect_timeout", "gen_rpc.connect_timeout", [
+  {default, "5s"},
+  {datatype, {duration, ms}}
+]}.
+
+%% Client and Server send timeout
+{mapping, "rpc.send_timeout", "gen_rpc.send_timeout", [
+  {default, 5000},
+  {datatype, {duration, ms}}
+]}.
+
+%% Authentication timeout
+{mapping, "rpc.authentication_timeout", "gen_rpc.authentication_timeout", [
+  {default, 5000},
+  {datatype, {duration, ms}}
+]}.
+
+%% Default receive timeout for call() functions
+{mapping, "rpc.call_receive_timeout", "gen_rpc.call_receive_timeout", [
+  {default, 15000},
+  {datatype, {duration, ms}}
+]}.
+
+%% Socket keepalive configuration
+{mapping, "rpc.socket_keepalive_idle", "gen_rpc.socket_keepalive_idle", [
+  {default, 7200},
+  {datatype, {duration, s}}
+]}.
+
+%% Seconds between probes
+{mapping, "rpc.socket_keepalive_interval", "gen_rpc.socket_keepalive_interval", [
+  {default, 75},
+  {datatype, {duration, s}}
+]}.
+
+%% Probes lost to close the connection
+{mapping, "rpc.socket_keepalive_count", "gen_rpc.socket_keepalive_count", [
+  {default, 9},
+  {datatype, integer}
+]}.
+
+%%--------------------------------------------------------------------
+%% Log
+%%--------------------------------------------------------------------
+
+{mapping, "log.to", "kernel.logger", [
+  {default, console},
+  {datatype, {enum, [off, file, console, both]}}
+]}.
+
+{mapping, "log.level", "kernel.logger", [
+  {default, warning},
+  {datatype, {enum, [debug, info, notice, warning, error, critical, alert, emergency, all]}}
+]}.
+
+{mapping, "log.primary_log_level", "kernel.logger_level", [
+   {default, warning},
+   {datatype, {enum, [debug, info, notice, warning, error, critical, alert, emergency, all]}}
+]}.
+
+{mapping, "log.logger_sasl_compatible", "kernel.logger_sasl_compatible", [
+  {default, true},
+  {datatype, {enum, [true, false]}}
+]}.
+
+{mapping, "log.dir", "kernel.logger", [
+  {default, "log"},
+  {datatype, string}
+]}.
+
+{mapping, "log.file", "kernel.logger", [
+  {default, "emqx.log"},
+  {datatype, file}
+]}.
+
+{mapping, "log.chars_limit", "kernel.logger", [
+  {default, -1},
+  {datatype, integer}
+]}.
+
+{mapping, "log.rotation", "kernel.logger", [
+  {default, on},
+  {datatype, flag}
+]}.
+
+{mapping, "log.rotation.size", "kernel.logger", [
+  {default, "10MB"},
+  {datatype, bytesize}
+]}.
+
+{mapping, "log.size", "kernel.logger", [
+  {default, infinity},
+  {datatype, [bytesize, atom]}
+]}.
+
+{mapping, "log.rotation.count", "kernel.logger", [
+  {default, 5},
+  {datatype, integer}
+]}.
+
+{mapping, "log.$level.file", "kernel.logger", [
+  {datatype, file}
+]}.
+
+{mapping, "log.sync_mode_qlen", "kernel.logger", [
+  {default, 100},
+  {datatype, integer}
+]}.
+
+{mapping, "log.drop_mode_qlen", "kernel.logger", [
+  {default, 3000},
+  {datatype, integer}
+]}.
+
+{mapping, "log.flush_qlen", "kernel.logger", [
+  {default, 8000},
+  {datatype, integer}
+]}.
+
+{mapping, "log.overload_kill", "kernel.logger", [
+  {default, on},
+  {datatype, flag}
+]}.
+
+{mapping, "log.overload_kill_mem_size", "kernel.logger", [
+  {default, "30MB"},
+  {datatype, bytesize}
+]}.
+
+{mapping, "log.overload_kill_qlen", "kernel.logger", [
+  {default, 20000},
+  {datatype, integer}
+]}.
+
+{mapping, "log.overload_kill_restart_after", "kernel.logger", [
+  {default, "5s"},
+  {datatype, [{duration, ms}, atom]}
+]}.
+
+{mapping, "log.burst_limit", "kernel.logger", [
+  {default, "disabled"},
+  {datatype, string}
+]}.
+
+{mapping, "log.sasl", "sasl.sasl_error_logger", [
+  {default, off},
+  {datatype, flag},
+  hidden
+]}.
+
+{mapping, "log.error_logger", "kernel.error_logger", [
+  {default, silent},
+  {datatype, {enum, [silent]}},
+  hidden
+]}.
+
+%% disable lager
+{mapping, "lager.handlers", "lager.handlers", [
+  {default, []},
+  hidden
+]}.
+{mapping, "lager.crash_log", "lager.crash_log", [
+  {default, off},
+  {datatype, flag},
+  hidden
+]}.
+
+{translation, "kernel.logger_level", fun(_, _, Conf) ->
+    cuttlefish:conf_get("log.level", Conf)
+end}.
+
+{translation, "kernel.logger", fun(Conf) ->
+    LogTo = cuttlefish:conf_get("log.to", Conf),
+    LogLevel = cuttlefish:conf_get("log.level", Conf),
+    LogType = case cuttlefish:conf_get("log.rotation", Conf) of
+                  true -> wrap;
+                  false -> halt
+              end,
+    CharsLimit = case cuttlefish:conf_get("log.chars_limit", Conf) of
+                     -1 -> unlimited;
+                     V -> V
+                 end,
+    Formatter = {emqx_logger_formatter,
+                  #{template =>
+                      [time," [",level,"] ",
+                       {clientid,
+                          [{peername,
+                              [clientid,"@",peername," "],
+                              [clientid, " "]}],
+                          [{peername,
+                              [peername," "],
+                              []}]},
+                       msg,"\n"],
+                    chars_limit => CharsLimit}},
+    {BustLimitOn, {MaxBurstCount, TimeWindow}} =
+        case string:tokens(cuttlefish:conf_get("log.burst_limit", Conf), ", ") of
+            ["disabled"] -> {false, {20000, 1000}};
+            [Count, Window] ->
+                {true, {list_to_integer(Count),
+                        case cuttlefish_duration:parse(Window, ms) of
+                          Secs when is_integer(Secs) -> Secs;
+                          {error, Reason1} -> error(Reason1)
+                        end}}
+        end,
+    FileConf =  fun(Filename) ->
+                  BasicConf =
+                  #{type => LogType,
+                    file => filename:join(cuttlefish:conf_get("log.dir", Conf), Filename),
+                    max_no_files => cuttlefish:conf_get("log.rotation.count", Conf),
+                    sync_mode_qlen => cuttlefish:conf_get("log.sync_mode_qlen", Conf),
+                    drop_mode_qlen => cuttlefish:conf_get("log.drop_mode_qlen", Conf),
+                    flush_qlen => cuttlefish:conf_get("log.flush_qlen", Conf),
+                    overload_kill_enable => cuttlefish:conf_get("log.overload_kill", Conf),
+                    overload_kill_qlen => cuttlefish:conf_get("log.overload_kill_qlen", Conf),
+                    overload_kill_mem_size => cuttlefish:conf_get("log.overload_kill_mem_size", Conf),
+                    overload_kill_restart_after => cuttlefish:conf_get("log.overload_kill_restart_after", Conf),
+                    burst_limit_enable => BustLimitOn,
+                    burst_limit_max_count => MaxBurstCount,
+                    burst_limit_window_time => TimeWindow
+                    },
+                  MaxNoBytes = case LogType of
+                    wrap -> cuttlefish:conf_get("log.rotation.size", Conf);
+                    halt -> cuttlefish:conf_get("log.size", Conf)
+                  end,
+                  BasicConf#{max_no_bytes => MaxNoBytes}
+                end,
+
+    %% For the default logger that outputs to console
+    DefaultHandler =
+        if LogTo =:= console orelse LogTo =:= both ->
+                [{handler, default, logger_std_h,
+                    #{level => LogLevel,
+                      config => #{type => standard_io},
+                      formatter => Formatter}}];
+           true ->
+                [{handler, default, undefined}]
+        end,
+
+    %% For the file logger
+    FileHandler =
+        if LogTo =:= file orelse LogTo =:= both ->
+              [{handler, file, logger_disk_log_h,
+                    #{level => LogLevel,
+                      config => FileConf(cuttlefish:conf_get("log.file", Conf)),
+                      formatter => Formatter,
+                      filesync_repeat_interval => no_repeat}}];
+           true -> []
+        end,
+
+    %% For creating additional log files for specific log levels.
+    AdditionalLogFiles =
+        lists:foldl(
+          fun({[_, Level, _] = K, Filename}, Acc) when LogTo =:= file; LogTo =:= both ->
+                case cuttlefish_variable:is_fuzzy_match(K, ["log", "$level", "file"]) of
+                  true -> [{Level, Filename} | Acc];
+                  false -> Acc
+                end;
+             ({_K, _V}, Acc) ->
+               Acc
+          end, [], Conf),
+    AdditionalHandlers =
+        [{handler, list_to_atom("file_for_"++Level), logger_disk_log_h,
+            #{level => list_to_atom(Level),
+              config => FileConf(Filename),
+              formatter => Formatter,
+              filesync_repeat_interval => no_repeat}}
+          || {Level, Filename} <- AdditionalLogFiles],
+
+    DefaultHandler ++ FileHandler ++ AdditionalHandlers
+end}.
+
+%%--------------------------------------------------------------------
+%% RPC
+%%--------------------------------------------------------------------
+
+%% RPC Mode.
+{mapping, "rpc.mode", "emqx.rpc_mode", [
+{default, async},
+{datatype, {enum, [sync, async]}}
+]}.
+
+{mapping, "rpc.async_batch_size", "gen_rpc.max_batch_size", [
+{default, 256},
+{datatype, integer}
+]}.
+
+%% RPC server port.
+{mapping, "rpc.tcp_server_port", "gen_rpc.tcp_server_port", [
+{default, 5369},
+{datatype, integer}
+]}.
+
+%% Default TCP port for outgoing connections
+{mapping, "rpc.tcp_client_port", "gen_rpc.tcp_client_port", [
+{default, 5369},
+{datatype, integer}
+]}.
+
+%% Default TCP port for outgoing connections
+{mapping, "rpc.tcp_client_num", "gen_rpc.tcp_client_num", [
+{default, 0},
+{datatype, integer},
+{validators, ["range:gt_0_lt_256"]}
+]}.
+
+{translation, "gen_rpc.tcp_client_num", fun(Conf) ->
+case cuttlefish:conf_get("rpc.tcp_client_num", Conf) of
+0 -> max(1, erlang:system_info(schedulers) div 2);
+V -> V
+end
+end}.
+
+%% Client connect timeout
+{mapping, "rpc.connect_timeout", "gen_rpc.connect_timeout", [
+{default, "5s"},
+{datatype, {duration, ms}}
+]}.
+
+%% Client and Server send timeout
+{mapping, "rpc.send_timeout", "gen_rpc.send_timeout", [
+{default, 5000},
+{datatype, {duration, ms}}
+]}.
+
+%% Authentication timeout
+{mapping, "rpc.authentication_timeout", "gen_rpc.authentication_timeout", [
+{default, 5000},
+{datatype, {duration, ms}}
+]}.
+
+%% Default receive timeout for call() functions
+{mapping, "rpc.call_receive_timeout", "gen_rpc.call_receive_timeout", [
+{default, 15000},
+{datatype, {duration, ms}}
+]}.
+
+%% Socket keepalive configuration
+{mapping, "rpc.socket_keepalive_idle", "gen_rpc.socket_keepalive_idle", [
+{default, 7200},
+{datatype, {duration, s}}
+]}.
+
+%% Seconds between probes
+{mapping, "rpc.socket_keepalive_interval", "gen_rpc.socket_keepalive_interval", [
+{default, 75},
+{datatype, {duration, s}}
+]}.
+
+%% Probes lost to close the connection
+{mapping, "rpc.socket_keepalive_count", "gen_rpc.socket_keepalive_count", [
+{default, 9},
+{datatype, integer}
+]}.
+
+%% Size of TCP send buffer
+{mapping, "rpc.socket_sndbuf", "gen_rpc.socket_sndbuf", [
+{default, "1MB"},
+{datatype, bytesize}
+]}.
+
+%% Size of TCP receive buffer
+{mapping, "rpc.socket_recbuf", "gen_rpc.socket_recbuf", [
+{default, "1MB"},
+{datatype, bytesize}
+]}.
+
+%% Size of TCP receive buffer
+{mapping, "rpc.socket_buffer", "gen_rpc.socket_buffer", [
+{default, "1MB"},
+{datatype, bytesize}
+]}.
+
+{validator, "range:gt_0_lt_256", "must greater than 0 and less than 256",
+fun(X) -> X >= 0 andalso X < 256 end
+}.
+
+%%--------------------------------------------------------------------
+%% Modules
+%%--------------------------------------------------------------------
+
+{mapping, "modules.loaded_file", "emqx.modules_loaded_file", [
+  {datatype, string}
+]}.
+
+%%-------------------------------------------------------------------
+%% Plugins
+%%-------------------------------------------------------------------
+
+{mapping, "plugins.etc_dir", "emqx.plugins_etc_dir", [
+  {datatype, string}
+]}.
+
+{mapping, "plugins.loaded_file", "emqx.plugins_loaded_file", [
+  {datatype, string}
+]}.
+
+{mapping, "plugins.expand_plugins_dir", "emqx.expand_plugins_dir", [
+  {datatype, string}
+]}.
+
+%%--------------------------------------------------------------------
+%% System Monitor
+%%--------------------------------------------------------------------
+
+%% @doc Long GC, don't monitor in production mode for:
+%% https://hub.fastgit.org/erlang/otp/blob/feb45017da36be78d4c5784d758ede619fa7bfd3/erts/emulator/beam/erl_gc.c#L421
+{mapping, "sysmon.long_gc", "emqx.sysmon", [
+  {default, 0},
+  {datatype, [integer, {duration, ms}]}
+]}.
+
+%% @doc Long Schedule(ms)
+{mapping, "sysmon.long_schedule", "emqx.sysmon", [
+  {default, 240},
+  {datatype, [integer, {duration, ms}]}
+]}.
+
+%% @doc Large Heap
+{mapping, "sysmon.large_heap", "emqx.sysmon", [
+  {default, "8MB"},
+  {datatype, bytesize}
+]}.
+
+%% @doc Monitor Busy Port
+{mapping, "sysmon.busy_port", "emqx.sysmon", [
+  {default, false},
+  {datatype, {enum, [true, false]}}
+]}.
+
+%% @doc Monitor Busy Dist Port
+{mapping, "sysmon.busy_dist_port", "emqx.sysmon", [
+  {default, true},
+  {datatype, {enum, [true, false]}}
+]}.
+
+{translation, "emqx.sysmon", fun(Conf) ->
+    Configs = cuttlefish_variable:filter_by_prefix("sysmon", Conf),
+    [{list_to_atom(Name), Value} || {[_, Name], Value} <- Configs]
+end}.
+
+%%--------------------------------------------------------------------
+%% Operating System Monitor
+%%--------------------------------------------------------------------
+
+{mapping, "os_mon.cpu_check_interval", "emqx.os_mon", [
+  {default, 60},
+  {datatype, {duration, s}}
+]}.
+
+{mapping, "os_mon.cpu_high_watermark", "emqx.os_mon", [
+  {default, "80%"},
+  {datatype, {percent, float}}
+]}.
+
+{mapping, "os_mon.cpu_low_watermark", "emqx.os_mon", [
+  {default, "60%"},
+  {datatype, {percent, float}}
+]}.
+
+{mapping, "os_mon.mem_check_interval", "emqx.os_mon", [
+  {default, 60},
+  {datatype, {duration, s}}
+]}.
+
+{mapping, "os_mon.sysmem_high_watermark", "emqx.os_mon", [
+  {default, "70%"},
+  {datatype, {percent, float}}
+]}.
+
+{mapping, "os_mon.procmem_high_watermark", "emqx.os_mon", [
+  {default, "5%"},
+  {datatype, {percent, float}}
+]}.
+
+{translation, "emqx.os_mon", fun(Conf) ->
+    Configs = cuttlefish_variable:filter_by_prefix("os_mon", Conf),
+    [{list_to_atom(Name), Value} || {[_, Name], Value} <- Configs]
+end}.
+
+%%--------------------------------------------------------------------
+%% VM Monitor
+%%--------------------------------------------------------------------
+{mapping, "vm_mon.check_interval", "emqx.vm_mon", [
+  {default, 30},
+  {datatype, {duration, s}}
+]}.
+
+{mapping, "vm_mon.process_high_watermark", "emqx.vm_mon", [
+  {default, "80%"},
+  {datatype, {percent, float}}
+]}.
+
+{mapping, "vm_mon.process_low_watermark", "emqx.vm_mon", [
+  {default, "60%"},
+  {datatype, {percent, float}}
+]}.
+
+{translation, "emqx.vm_mon", fun(Conf) ->
+    Configs = cuttlefish_variable:filter_by_prefix("vm_mon", Conf),
+    [{list_to_atom(Name), Value} || {[_, Name], Value} <- Configs]
+end}.
