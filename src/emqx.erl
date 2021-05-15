@@ -48,8 +48,6 @@
         , reboot/0
         ]).
 
--define(APP, ?MODULE).
-
 -define(COPYRIGHT, "Copyright (c) 2020 EMQ Technologies Co., Ltd").
 
 -define(LICENSE_MESSAGE, "Licensed under the Apache License, Version 2.0").

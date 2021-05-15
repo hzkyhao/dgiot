@@ -9,9 +9,9 @@ start() ->
     MnesiaDir = filename:join(["_build", "data", MnesiaName]),
     ok = application:set_env(mnesia, dir, MnesiaDir),
     SpecEmqxConfig = fun(_) -> ok end,
-    start(SpecEmqxConfig).
+    start(SpecDgiotConfig).
 
 start(SpecEmqxConfig) ->
-    SchemaPath = filename:join(["priv", "emqx.schema"]),
-    ConfPath = filename:join(["etc", "emqx.conf"]),
-    emqx_ct_helpers:start_app(emqx, SchemaPath, ConfPath, SpecEmqxConfig).
+    SchemaPath = filename:join(["priv", "dgiot.schema"]),
+    ConfPath = filename:join(["etc", "dgiot.conf"]),
+    emqx_ct_helpers:start_app(dgiot, SchemaPath, ConfPath, SpecDgiotConfig).

@@ -4,9 +4,9 @@
 
 ## NOTE:
 ##
-## Arguments configured in this file might be overridden by configs from `emqx.conf`.
+## Arguments configured in this file might be overridden by configs from `dgiot.conf`.
 ##
-## Some basic VM arguments are to be configured in `emqx.conf`,
+## Some basic VM arguments are to be configured in `dgiot.conf`,
 ## such as `node.name` for `-name` and `node.cooke` for `-setcookie`.
 
 ## Sets the maximum number of simultaneously existing processes for this system.

@@ -202,7 +202,7 @@ end}.
 
 %% @doc Node name
 {mapping, "node.name", "vm_args.-name", [
-  {default, "emqx@127.0.0.1"}
+  {default, "dgiot@127.0.0.1"}
 ]}.
 
 %% @doc Specify SSL Options in the file if using SSL for erlang distribution
@@ -213,10 +213,10 @@ end}.
 
 %% @doc Secret cookie for distributed erlang node
 {mapping, "node.cookie", "vm_args.-setcookie", [
-  {default, "emqxsecretcookie"}
+  {default, "dgiotsecretcookie"}
 ]}.
 
-{mapping, "node.data_dir", "emqx.data_dir", [
+{mapping, "node.data_dir", "dgiot.data_dir", [
   {datatype, string}
 ]}.
 
@@ -281,7 +281,7 @@ end}.
 }.
 
 %% @doc Global GC Interval
-{mapping, "node.global_gc_interval", "emqx.global_gc_interval", [
+{mapping, "node.global_gc_interval", "dgiot.global_gc_interval", [
   {datatype, {duration, s}}
 ]}.
 
@@ -338,7 +338,7 @@ end}.
 %%--------------------------------------------------------------------
 
 %% RPC Mode.
-{mapping, "rpc.mode", "emqx.rpc_mode", [
+{mapping, "rpc.mode", "dgiot.rpc_mode", [
   {default, async},
   {datatype, {enum, [sync, async]}}
 ]}.
@@ -446,7 +446,7 @@ end}.
 ]}.
 
 {mapping, "log.file", "kernel.logger", [
-  {default, "emqx.log"},
+  {default, "dgiot.log"},
   {datatype, file}
 ]}.
 
@@ -557,7 +557,7 @@ end}.
                      -1 -> unlimited;
                      V -> V
                  end,
-    Formatter = {emqx_logger_formatter,
+    Formatter = {dgiot_logger_formatter,
                   #{template =>
                       [time," [",level,"] ",
                        {clientid,
@@ -651,7 +651,7 @@ end}.
 %%--------------------------------------------------------------------
 
 %% RPC Mode.
-{mapping, "rpc.mode", "emqx.rpc_mode", [
+{mapping, "rpc.mode", "dgiot.rpc_mode", [
 {default, async},
 {datatype, {enum, [sync, async]}}
 ]}.
@@ -755,7 +755,7 @@ fun(X) -> X >= 0 andalso X < 256 end
 %% Modules
 %%--------------------------------------------------------------------
 
-{mapping, "modules.loaded_file", "emqx.modules_loaded_file", [
+{mapping, "modules.loaded_file", "dgiot.modules_loaded_file", [
   {datatype, string}
 ]}.
 
@@ -763,15 +763,15 @@ fun(X) -> X >= 0 andalso X < 256 end
 %% Plugins
 %%-------------------------------------------------------------------
 
-{mapping, "plugins.etc_dir", "emqx.plugins_etc_dir", [
+{mapping, "plugins.etc_dir", "dgiot.plugins_etc_dir", [
   {datatype, string}
 ]}.
 
-{mapping, "plugins.loaded_file", "emqx.plugins_loaded_file", [
+{mapping, "plugins.loaded_file", "dgiot.plugins_loaded_file", [
   {datatype, string}
 ]}.
 
-{mapping, "plugins.expand_plugins_dir", "emqx.expand_plugins_dir", [
+{mapping, "plugins.expand_plugins_dir", "dgiot.expand_plugins_dir", [
   {datatype, string}
 ]}.
 
@@ -781,36 +781,36 @@ fun(X) -> X >= 0 andalso X < 256 end
 
 %% @doc Long GC, don't monitor in production mode for:
 %% https://hub.fastgit.org/erlang/otp/blob/feb45017da36be78d4c5784d758ede619fa7bfd3/erts/emulator/beam/erl_gc.c#L421
-{mapping, "sysmon.long_gc", "emqx.sysmon", [
+{mapping, "sysmon.long_gc", "dgiot.sysmon", [
   {default, 0},
   {datatype, [integer, {duration, ms}]}
 ]}.
 
 %% @doc Long Schedule(ms)
-{mapping, "sysmon.long_schedule", "emqx.sysmon", [
+{mapping, "sysmon.long_schedule", "dgiot.sysmon", [
   {default, 240},
   {datatype, [integer, {duration, ms}]}
 ]}.
 
 %% @doc Large Heap
-{mapping, "sysmon.large_heap", "emqx.sysmon", [
+{mapping, "sysmon.large_heap", "dgiot.sysmon", [
   {default, "8MB"},
   {datatype, bytesize}
 ]}.
 
 %% @doc Monitor Busy Port
-{mapping, "sysmon.busy_port", "emqx.sysmon", [
+{mapping, "sysmon.busy_port", "dgiot.sysmon", [
   {default, false},
   {datatype, {enum, [true, false]}}
 ]}.
 
 %% @doc Monitor Busy Dist Port
-{mapping, "sysmon.busy_dist_port", "emqx.sysmon", [
+{mapping, "sysmon.busy_dist_port", "dgiot.sysmon", [
   {default, true},
   {datatype, {enum, [true, false]}}
 ]}.
 
-{translation, "emqx.sysmon", fun(Conf) ->
+{translation, "dgiot.sysmon", fun(Conf) ->
     Configs = cuttlefish_variable:filter_by_prefix("sysmon", Conf),
     [{list_to_atom(Name), Value} || {[_, Name], Value} <- Configs]
 end}.
@@ -819,37 +819,37 @@ end}.
 %% Operating System Monitor
 %%--------------------------------------------------------------------
 
-{mapping, "os_mon.cpu_check_interval", "emqx.os_mon", [
+{mapping, "os_mon.cpu_check_interval", "dgiot.os_mon", [
   {default, 60},
   {datatype, {duration, s}}
 ]}.
 
-{mapping, "os_mon.cpu_high_watermark", "emqx.os_mon", [
+{mapping, "os_mon.cpu_high_watermark", "dgiot.os_mon", [
   {default, "80%"},
   {datatype, {percent, float}}
 ]}.
 
-{mapping, "os_mon.cpu_low_watermark", "emqx.os_mon", [
+{mapping, "os_mon.cpu_low_watermark", "dgiot.os_mon", [
   {default, "60%"},
   {datatype, {percent, float}}
 ]}.
 
-{mapping, "os_mon.mem_check_interval", "emqx.os_mon", [
+{mapping, "os_mon.mem_check_interval", "dgiot.os_mon", [
   {default, 60},
   {datatype, {duration, s}}
 ]}.
 
-{mapping, "os_mon.sysmem_high_watermark", "emqx.os_mon", [
+{mapping, "os_mon.sysmem_high_watermark", "dgiot.os_mon", [
   {default, "70%"},
   {datatype, {percent, float}}
 ]}.
 
-{mapping, "os_mon.procmem_high_watermark", "emqx.os_mon", [
+{mapping, "os_mon.procmem_high_watermark", "dgiot.os_mon", [
   {default, "5%"},
   {datatype, {percent, float}}
 ]}.
 
-{translation, "emqx.os_mon", fun(Conf) ->
+{translation, "dgiot.os_mon", fun(Conf) ->
     Configs = cuttlefish_variable:filter_by_prefix("os_mon", Conf),
     [{list_to_atom(Name), Value} || {[_, Name], Value} <- Configs]
 end}.
@@ -857,22 +857,22 @@ end}.
 %%--------------------------------------------------------------------
 %% VM Monitor
 %%--------------------------------------------------------------------
-{mapping, "vm_mon.check_interval", "emqx.vm_mon", [
+{mapping, "vm_mon.check_interval", "dgiot.vm_mon", [
   {default, 30},
   {datatype, {duration, s}}
 ]}.
 
-{mapping, "vm_mon.process_high_watermark", "emqx.vm_mon", [
+{mapping, "vm_mon.process_high_watermark", "dgiot.vm_mon", [
   {default, "80%"},
   {datatype, {percent, float}}
 ]}.
 
-{mapping, "vm_mon.process_low_watermark", "emqx.vm_mon", [
+{mapping, "vm_mon.process_low_watermark", "dgiot.vm_mon", [
   {default, "60%"},
   {datatype, {percent, float}}
 ]}.
 
-{translation, "emqx.vm_mon", fun(Conf) ->
+{translation, "dgiot.vm_mon", fun(Conf) ->
     Configs = cuttlefish_variable:filter_by_prefix("vm_mon", Conf),
     [{list_to_atom(Name), Value} || {[_, Name], Value} <- Configs]
 end}.

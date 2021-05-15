@@ -5,11 +5,11 @@
   {modules, []},
   {registered, []},
   {applications, [kernel,stdlib,gproc,gen_rpc, sasl,os_mon]},
-  {mod, {emqx_app,[]}},
+  {mod, {dgiot_app,[]}},
   {env, []},
   {licenses, ["Apache-2.0"]},
-  {maintainers, ["EMQ X Team <contact@emqx.io>"]},
-  {links, [{"Homepage", "https://emqx.io/"},
-           {"Github", "https://hub.fastgit.org/emqx/emqx"}
+  {maintainers, ["DGIOT Team "]},
+  {links, [{"Homepage", "https://www.iotn2n.com/"},
+           {"Github", "https://hub.fastgit.org/dgiot/dgiot"}
           ]}
 ]}.
